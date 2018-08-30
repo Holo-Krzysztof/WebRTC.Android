@@ -205,13 +205,7 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
                 new String[] {Manifest.permission.CAMERA},
                 CAMERA_PERMISSION_ID);
 
-        SurfaceTextureHelper textureHelper = SurfaceTextureHelper.create("testthread", eglBase.getEglBaseContext());
-
-        Camera2Enumerator enumerator = new Camera2Enumerator(getApplicationContext());
-        String[] names = enumerator.getDeviceNames();
-        CameraVideoCapturer capturer = enumerator.createCapturer(names[0], null);
-        capturer.initialize(textureHelper, getApplicationContext(), videoSource.getCapturerObserver());
-        capturer.startCapture(1280, 720, 0);
+        CameraCaptureHelper.RegisterCameraCapturer(getApplicationContext(), videoSource, eglBase);
 
         createOffer();
         createAnswer();
