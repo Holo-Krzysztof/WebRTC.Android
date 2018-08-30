@@ -36,26 +36,24 @@ import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements ScreenCapturePermissionListener {
 
     private static final int CAMERA_PERMISSION_ID = 1337;
 
     private enum VideoSourceType { ScreenCapture, BackCamera }
-    private static final VideoSourceType videoSourceType = VideoSourceType.ScreenCapture;
+    private static final VideoSourceType videoSourceType = VideoSourceType.BackCamera;
 
     private EglBase eglBase;
-    VideoSource videoSource;
-    AudioSource audioSource;
-    VideoTrack videoTrack;
-    AudioTrack audioTrack;
-    ArrayList<PeerConnection.IceServer> iceServers;
-    PeerConnection sourcePeer;
-    SdpObserver sourceSdpObserver;
-    PeerConnection sinkPeer;
-    SdpObserver sinkSdpObserver;
-    SurfaceViewRenderer videoOutputSurface;
-    MediaConstraints audioConstraints;
+    private VideoSource videoSource;
+    private AudioSource audioSource;
+    private PeerConnection sourcePeer;
+    private SdpObserver sourceSdpObserver;
+    private PeerConnection sinkPeer;
+    private SdpObserver sinkSdpObserver;
+    private SurfaceViewRenderer videoOutputSurface;
+    private MediaConstraints mediaConstraints;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,14 +77,14 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
         createVideoSource(pcFactory);
         createAudioSource(pcFactory);
 
-        videoTrack = pcFactory.createVideoTrack("selfVideo", videoSource);
-        audioTrack = pcFactory.createAudioTrack("selfAudio", audioSource);
+        VideoTrack videoTrack = pcFactory.createVideoTrack("selfVideo", videoSource);
+        AudioTrack audioTrack = pcFactory.createAudioTrack("selfAudio", audioSource);
 
         MediaStream stream = pcFactory.createLocalMediaStream("localStream");
         stream.addTrack(audioTrack);
         stream.addTrack(videoTrack);
 
-        iceServers = new ArrayList<>();
+        List<PeerConnection.IceServer> iceServers = new ArrayList<>();
 
         sourcePeer = pcFactory.createPeerConnection(iceServers, new CustomPeerConnectionObserver() {
 
@@ -149,8 +147,8 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
     }
 
     private void createAudioSource(PeerConnectionFactory pcFactory) {
-        audioConstraints = new MediaConstraints();
-        audioSource = pcFactory.createAudioSource(audioConstraints);
+        mediaConstraints = new MediaConstraints();
+        audioSource = pcFactory.createAudioSource(mediaConstraints);
     }
 
     private void addScreenCapturePermissionFragment(Bundle savedInstanceState) {
@@ -189,8 +187,8 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
     }
 
     private void createOfferAndAnswer() {
-        sourcePeer.createOffer(sourceSdpObserver, audioConstraints);
-        sinkPeer.createAnswer(sinkSdpObserver, audioConstraints);
+        sourcePeer.createOffer(sourceSdpObserver, mediaConstraints);
+        sinkPeer.createAnswer(sinkSdpObserver, mediaConstraints);
     }
 
     private void registerCameraCapturer()
