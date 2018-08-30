@@ -62,17 +62,7 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
 
         initializeEglVideoSurfaceView();
 
-        InitializationOptions initOptions = InitializationOptions.builder(this).createInitializationOptions();
-        PeerConnectionFactory.initialize(initOptions);
-
-        PeerConnectionFactory.Options options = new PeerConnectionFactory.Options();
-        VideoEncoderFactory videoEncoderFactory = new DefaultVideoEncoderFactory(eglBase.getEglBaseContext(), true, true);
-        VideoDecoderFactory videoDecoderFactory = new DefaultVideoDecoderFactory(eglBase.getEglBaseContext());
-        PeerConnectionFactory pcFactory = PeerConnectionFactory.builder()
-                .setVideoEncoderFactory(videoEncoderFactory)
-                .setVideoDecoderFactory(videoDecoderFactory)
-                .setOptions(options)
-                .createPeerConnectionFactory();
+        PeerConnectionFactory pcFactory = createPeerConnectionFactory();
 
         createVideoSource(pcFactory);
         createAudioSource(pcFactory);
@@ -90,7 +80,7 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
 
             @Override
             public void onIceCandidate(IceCandidate iceCandidate) {
-                Log.d("sourcePeer", "ice candidate");
+                Log.d("sourcePeer", "received local ice candidate");
                 sinkPeer.addIceCandidate(iceCandidate);
             }
         });
@@ -140,6 +130,20 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
             addScreenCapturePermissionFragment(savedInstanceState);
         else if (VideoSourceType.BackCamera == videoSourceType)
             registerCameraCapturer();
+    }
+
+    private PeerConnectionFactory createPeerConnectionFactory() {
+        InitializationOptions initOptions = InitializationOptions.builder(this).createInitializationOptions();
+        PeerConnectionFactory.initialize(initOptions);
+
+        PeerConnectionFactory.Options options = new PeerConnectionFactory.Options();
+        VideoEncoderFactory videoEncoderFactory = new DefaultVideoEncoderFactory(eglBase.getEglBaseContext(), true, true);
+        VideoDecoderFactory videoDecoderFactory = new DefaultVideoDecoderFactory(eglBase.getEglBaseContext());
+        return PeerConnectionFactory.builder()
+                .setVideoEncoderFactory(videoEncoderFactory)
+                .setVideoDecoderFactory(videoDecoderFactory)
+                .setOptions(options)
+                .createPeerConnectionFactory();
     }
 
     private void createVideoSource(PeerConnectionFactory pcFactory) {
