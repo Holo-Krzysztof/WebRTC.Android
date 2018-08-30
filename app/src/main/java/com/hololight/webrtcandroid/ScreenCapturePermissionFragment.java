@@ -38,7 +38,7 @@ public class ScreenCapturePermissionFragment extends Fragment {
 
         if (requestCode == REQUEST_MEDIA_PROJECTION) {
 
-            mPermissionCallbackTarget.onScreenCapturePermissionResult(Activity.RESULT_OK == resultCode);
+            mPermissionCallbackTarget.onScreenCapturePermissionResult(Activity.RESULT_OK == resultCode, data);
         }
     }
 
@@ -50,7 +50,7 @@ public class ScreenCapturePermissionFragment extends Fragment {
             mPermissionCallbackTarget = (ScreenCapturePermissionListener) context;
         } catch (ClassCastException e) {
             throw new ClassCastException(context.toString()
-                    + " must implement OnHeadlineSelectedListener");
+                    + " must implement ScreenCapturePermissionListener");
         }
     }
 }

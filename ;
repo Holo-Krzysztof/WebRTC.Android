@@ -1,0 +1,19 @@
+Externalized Screen Capture Permission Dialog
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# On branch master
+# Your branch is up to date with 'origin/master'.
+#
+# Changes to be committed:
+#	modified:   .idea/caches/build_file_checksums.ser
+#	deleted:    .idea/dictionaries/Holo_PC3.xml
+#	new file:   .idea/vcs.xml
+#	modified:   app/build.gradle
+#	modified:   app/src/main/java/com/hololight/webrtcandroid/MainActivity.java
+#	new file:   app/src/main/java/com/hololight/webrtcandroid/Observers/CustomPeerConnectionObserver.java
+#	new file:   app/src/main/java/com/hololight/webrtcandroid/Observers/CustomSdpObserver.java
+#	new file:   app/src/main/java/com/hololight/webrtcandroid/ScreenCapturePermissionFragment.java
+#	new file:   app/src/main/java/com/hololight/webrtcandroid/ScreenCapturePermissionListener.java
+#	modified:   app/src/main/res/values/strings.xml
+#

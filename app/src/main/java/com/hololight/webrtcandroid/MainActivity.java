@@ -1,10 +1,10 @@
 package com.hololight.webrtcandroid;
 
-import android.app.Activity;
+import android.Manifest;
 import android.content.Intent;
-import android.media.projection.MediaProjection;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.AppCompatActivity;
@@ -26,7 +26,6 @@ import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
 import org.webrtc.PeerConnectionFactory.InitializationOptions;
-import org.webrtc.ScreenCapturerAndroid;
 import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
 import org.webrtc.SurfaceTextureHelper;
@@ -40,35 +39,30 @@ import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements ScreenCapturePermissionListener {
 
-    private static final int REQUEST_MEDIA_PROJECTION = 1;
+    private static final int CAMERA_PERMISSION_ID = 1337;
+
+    private enum VideoSourceType { ScreenCapture, BackCamera }
+    private static final VideoSourceType videoSourceType = VideoSourceType.ScreenCapture;
+
     private EglBase eglBase;
     VideoSource videoSource;
     AudioSource audioSource;
     VideoTrack videoTrack;
     AudioTrack audioTrack;
     ArrayList<PeerConnection.IceServer> iceServers;
-    PeerConnection localPeer;
-    SdpObserver localObserver;
-    PeerConnection remotePeer;
-    SdpObserver remoteObserver;
-    SurfaceViewRenderer remoteRenderer;
-    MediaConstraints constraints;
+    PeerConnection sourcePeer;
+    SdpObserver sourceSdpObserver;
+    PeerConnection sinkPeer;
+    SdpObserver sinkSdpObserver;
+    SurfaceViewRenderer videoOutputSurface;
+    MediaConstraints audioConstraints;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        if (savedInstanceState == null) {
-            FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-            ScreenCapturePermissionFragment fragment = new ScreenCapturePermissionFragment();
-            transaction.add(fragment, "ScreenCapturePermissionDialog");
-            transaction.commit();
-        }
-
-        eglBase = EglBase.create();
-        remoteRenderer = findViewById(R.id.video_view);
-        remoteRenderer.init(eglBase.getEglBaseContext(), null);
+        initializeEglVideoSurfaceView();
 
         InitializationOptions initOptions = InitializationOptions.builder(this).createInitializationOptions();
         PeerConnectionFactory.initialize(initOptions);
@@ -82,78 +76,96 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
                 .setOptions(options)
                 .createPeerConnectionFactory();
 
-        constraints = new MediaConstraints();
-        videoSource = pcFactory.createVideoSource(false);
-        audioSource = pcFactory.createAudioSource(constraints);
+        createVideoSource(pcFactory);
+        createAudioSource(pcFactory);
+
         videoTrack = pcFactory.createVideoTrack("selfVideo", videoSource);
-
-        //uncomment to render the local video track
-        //videoTrack.addSink(remoteRenderer);
-
         audioTrack = pcFactory.createAudioTrack("selfAudio", audioSource);
-        iceServers = new ArrayList<>();
 
         MediaStream stream = pcFactory.createLocalMediaStream("localStream");
         stream.addTrack(audioTrack);
         stream.addTrack(videoTrack);
 
-        localPeer = pcFactory.createPeerConnection(iceServers, new CustomPeerConnectionObserver() {
+        iceServers = new ArrayList<>();
+
+        sourcePeer = pcFactory.createPeerConnection(iceServers, new CustomPeerConnectionObserver() {
 
             @Override
             public void onIceCandidate(IceCandidate iceCandidate) {
-                Log.d("localPeer", "ice candidate");
-                remotePeer.addIceCandidate(iceCandidate);
+                Log.d("sourcePeer", "ice candidate");
+                sinkPeer.addIceCandidate(iceCandidate);
             }
         });
 
-        localPeer.addStream(stream);
+        sourcePeer.addStream(stream);
 
-        remotePeer = pcFactory.createPeerConnection(iceServers, new CustomPeerConnectionObserver() {
+        sinkPeer = pcFactory.createPeerConnection(iceServers, new CustomPeerConnectionObserver() {
 
             @Override
             public void onIceCandidate(IceCandidate iceCandidate) {
-                Log.d("remotePeer", "ice candidate");
-                localPeer.addIceCandidate(iceCandidate);
+                Log.d("sinkPeer", "ice candidate");
+                sourcePeer.addIceCandidate(iceCandidate);
             }
 
             @Override
             public void onAddStream(MediaStream mediaStream) {
-                Log.d("remotePeer", "stream added");
+                Log.d("sinkPeer", "stream added");
 
                 runOnUiThread(() -> {
                     VideoTrack video = mediaStream.videoTracks.get(0);
                     AudioTrack audio = mediaStream.audioTracks.get(0);
 
                     //comment out to render local video stream
-                    video.addSink(remoteRenderer);
+                    video.addSink(videoOutputSurface);
                 });
             }
 
         });
 
-        localObserver = new CustomSdpObserver() {
+        sourceSdpObserver = new CustomSdpObserver() {
             @Override
             public void onCreateSuccess(SessionDescription sessionDescription) {
-                localPeer.setLocalDescription(this, sessionDescription);
-                remotePeer.setRemoteDescription(remoteObserver, sessionDescription);
+                sourcePeer.setLocalDescription(this, sessionDescription);
+                sinkPeer.setRemoteDescription(sinkSdpObserver, sessionDescription);
             }
         };
 
-        remoteObserver = new CustomSdpObserver() {
+        sinkSdpObserver = new CustomSdpObserver() {
             @Override
             public void onCreateSuccess(SessionDescription sessionDescription) {
-                remotePeer.setLocalDescription(this, sessionDescription);
-                localPeer.setRemoteDescription(localObserver, sessionDescription);
+                sinkPeer.setLocalDescription(this, sessionDescription);
+                sourcePeer.setRemoteDescription(sourceSdpObserver, sessionDescription);
             }
         };
 
-        //needs media projection capability
-//        MediaProjectionManager projectionManager = (MediaProjectionManager)getApplication().getSystemService(MEDIA_PROJECTION_SERVICE);
-//        Intent mediaProjectionIntent = projectionManager.createScreenCaptureIntent();
-//        startActivityForResult(mediaProjectionIntent, REQUEST_MEDIA_PROJECTION);
+        if (VideoSourceType.ScreenCapture == videoSourceType)
+            addScreenCapturePermissionFragment(savedInstanceState);
+        else if (VideoSourceType.BackCamera == videoSourceType)
+            registerCameraCapturer();
+    }
 
+    private void createVideoSource(PeerConnectionFactory pcFactory) {
+        videoSource = pcFactory.createVideoSource(false);
+    }
 
+    private void createAudioSource(PeerConnectionFactory pcFactory) {
+        audioConstraints = new MediaConstraints();
+        audioSource = pcFactory.createAudioSource(audioConstraints);
+    }
 
+    private void addScreenCapturePermissionFragment(Bundle savedInstanceState) {
+        if (savedInstanceState == null) {
+            FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+            ScreenCapturePermissionFragment fragment = new ScreenCapturePermissionFragment();
+            transaction.add(fragment, "ScreenCapturePermissionDialog");
+            transaction.commit();
+        }
+    }
+
+    private void initializeEglVideoSurfaceView() {
+        eglBase = EglBase.create();
+        videoOutputSurface = findViewById(R.id.video_view);
+        videoOutputSurface.init(eglBase.getEglBaseContext(), null);
     }
 
     @Override
@@ -166,23 +178,38 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
     }
 
     @Override
-    public void onScreenCapturePermissionResult(boolean hasPermission) {
+    public void onScreenCapturePermissionResult(boolean hasPermission, @Nullable Intent data) {
+
+        if (!hasPermission)
+            throw new AssertionError("I ain't got no screen capture permission");
+
+        ScreenCaptureHelper.RegisterScreenCapturer(getApplicationContext(), data, videoSource, eglBase);
+
+        createOfferAndAnswer();
+    }
+
+    private void createOfferAndAnswer() {
+        sourcePeer.createOffer(sourceSdpObserver, audioConstraints);
+        sinkPeer.createAnswer(sinkSdpObserver, audioConstraints);
+    }
+
+    private void registerCameraCapturer()
+    {
+        // this actually requires the camera permission. we're not asking at runtime (bad developer!), so just
+        // give it the permission in your settings. don't do this in production, though!
+
+        ActivityCompat.requestPermissions(this,
+                new String[] {Manifest.permission.CAMERA},
+                CAMERA_PERMISSION_ID);
 
         SurfaceTextureHelper textureHelper = SurfaceTextureHelper.create("testthread", eglBase.getEglBaseContext());
 
-//                ScreenCapturerAndroid capturer = new ScreenCapturerAndroid(data, callback);
-//                capturer.initialize(textureHelper, getApplicationContext(), videoSource.getCapturerObserver());
-//                capturer.startCapture(720, 1280, 0);
-
-//                this actually requires the camera permission. we're not asking at runtime (bad developer!), so just
-//                give it the permission in your settings. don't do this in production, though!
         Camera2Enumerator enumerator = new Camera2Enumerator(getApplicationContext());
         String[] names = enumerator.getDeviceNames();
         CameraVideoCapturer capturer = enumerator.createCapturer(names[0], null);
         capturer.initialize(textureHelper, getApplicationContext(), videoSource.getCapturerObserver());
         capturer.startCapture(1280, 720, 0);
 
-        localPeer.createOffer(localObserver, constraints);
-        remotePeer.createAnswer(remoteObserver, constraints);
+        createOfferAndAnswer();
     }
 }
