@@ -183,11 +183,16 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
 
         ScreenCaptureHelper.RegisterScreenCapturer(getApplicationContext(), data, videoSource, eglBase);
 
-        createOfferAndAnswer();
+        createOffer();
+        createAnswer();
     }
 
-    private void createOfferAndAnswer() {
+    private void createOffer() {
         sourcePeer.createOffer(sourceSdpObserver, mediaConstraints);
+    }
+
+    private void createAnswer()
+    {
         sinkPeer.createAnswer(sinkSdpObserver, mediaConstraints);
     }
 
@@ -208,6 +213,7 @@ public class MainActivity extends AppCompatActivity implements ScreenCapturePerm
         capturer.initialize(textureHelper, getApplicationContext(), videoSource.getCapturerObserver());
         capturer.startCapture(1280, 720, 0);
 
-        createOfferAndAnswer();
+        createOffer();
+        createAnswer();
     }
 }
